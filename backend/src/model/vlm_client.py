@@ -52,3 +52,29 @@ class VLMClient:
         )
 
         return response.text
+
+    def generate_text_only(self, prompt: str, temperature: float = 0.3) -> str:
+        """Send a text-only prompt to Gemini (no image).
+
+        Used by verification modules (NLI checker, etc.) that operate on
+        already-generated text rather than raw images.
+
+        Parameters
+        ----------
+        prompt : str
+            Text prompt to send.
+        temperature : float
+            Sampling temperature (default 0.3).
+        """
+        generation_config = genai.types.GenerationConfig(
+            temperature=temperature,
+            max_output_tokens=1024,
+        )
+        response = self.model.generate_content(
+            prompt,
+            generation_config=generation_config,
+        )
+        return response.text
+
+    # Alias used by NLIChecker
+    generate_no_image = generate_text_only

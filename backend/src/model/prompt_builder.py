@@ -63,3 +63,48 @@ SEVERITY: [exactly one of: NORMAL / MILD / MODERATE / CRITICAL]
 FOLLOW_UP: [recommended next steps or 'None' if not applicable]
 DEVIATIONS: [any significant changes from the preliminary report, or 'None']
 """
+
+
+def build_nli_prompt(findings: str, impression: str, severity: str) -> str:
+    """Build a text-only prompt to check logical consistency between findings, impression, and severity."""
+    return f"""You are a clinical quality-assurance AI reviewing a radiology report for internal consistency.
+
+REPORT TO EVALUATE:
+FINDINGS: {findings}
+IMPRESSION: {impression}
+SEVERITY: {severity}
+
+Your task:
+1. Determine whether the IMPRESSION logically follows (entails) the FINDINGS.
+2. Verify whether the SEVERITY label is clinically appropriate given the findings.
+3. Identify any specific contradictions or inconsistencies.
+4. Assign an overall consistency score between 0.0 (completely inconsistent) and 1.0 (perfectly consistent).
+
+You MUST respond STRICTLY in this format with no extra text:
+
+NLI_RESULT: [exactly one of: ENTAILS / NEUTRAL / CONTRADICTS]
+SEVERITY_CHECK: [exactly one of: APPROPRIATE / TOO_HIGH / TOO_LOW]
+CONTRADICTIONS: [specific contradictions found, or "None"]
+CONSISTENCY_SCORE: [a float between 0.0 and 1.0]
+"""
+
+
+def build_hallucination_prompt(report_text: str) -> str:
+    """Build an image+text prompt for hallucination detection against the chest X-ray."""
+    return f"""You are an expert radiologist verifying whether the claims in an AI-generated radiology report are visually supported by the chest X-ray image provided.
+
+AI-GENERATED REPORT:
+{report_text}
+
+For EACH factual claim in the report, verify whether it is visible in the X-ray.
+Then provide an overall hallucination risk assessment.
+
+You MUST respond STRICTLY in this format:
+
+CLAIM_VERIFICATIONS:
+- CLAIM: [claim text] | STATUS: [VERIFIED / UNCERTAIN / LIKELY_HALLUCINATED] | REASON: [brief reason]
+- CLAIM: [claim text] | STATUS: [VERIFIED / UNCERTAIN / LIKELY_HALLUCINATED] | REASON: [brief reason]
+(list all significant claims)
+
+OVERALL_HALLUCINATION_RISK: [exactly one of: LOW / MEDIUM / HIGH]
+"""
