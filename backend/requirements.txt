@@ -1,0 +1,17 @@
+google-generativeai
+fastapi
+uvicorn
+Pillow
+rouge-score
+nltk
+python-dotenv
+python-multipart
+requests
+sentence-transformers
+faiss-cpu
+owlready2
+simple-icd-10
+transformers
+torch
+scikit-learn
+numpy
