@@ -12,34 +12,33 @@ def test_ultimate_pipeline():
     with open(dataset_path, "r") as f:
         dataset = json.load(f)
 
-    # Let's test the very first image
     test_case = dataset[0]
     image_path = test_case["image_path"]
 
-    print(f"🚀 INITIALIZING XR11 FULL PIPELINE 🚀")
+    print(f"🚀 INITIALIZING XR11 FULL VERIFIED PIPELINE 🚀")
     print(f"Testing with image: {image_path}")
-    print(f"Gold Standard Impression: {test_case['gold_impression']}")
     print("-" * 50)
-    
-    # Warning the user about the time it takes
-    print("Running pipeline... (Please wait 15-30 seconds.")
-    print("The system is currently making 7 separate API calls to Google...) \n")
+    print("Running pipeline... (Please wait ~30 seconds. Making exactly 5 API calls...) \n")
 
     try:
         generator = ReportGenerator()
         result = generator.generate_report(image_path)
 
-        print("=== 🧠 1. RAG MEMORY ===")
-        if result.get("rag_context_used"):
-            print("Successfully retrieved historical cases to ground the AI.")
-        else:
-            print("No RAG context used / RAG failed.")
-
-        print("\n=== 🎲 2. UNCERTAINTY ANALYSIS (Safety Net) ===")
-        print(json.dumps(result.get("uncertainty", {}), indent=2))
-
-        print("\n=== ✍️ 3. FINAL STRUCTURED REPORT (After 2-Round Refinement) ===")
+        print("\n=== 🧠 1. FINAL STRUCTURED REPORT ===")
         print(json.dumps(result.get("final_report", {}), indent=2))
+
+        print("\n=== ⚖️ 2. NLI LOGIC CHECK ===")
+        print(json.dumps(result.get("verification", {}).get("nli_results", {}), indent=2))
+        
+        print("\n=== 🧬 3. RADLEX KNOWLEDGE GRAPH MATCHES ===")
+        kg = result.get("verification", {}).get("kg_results", {})
+        print(f"Standardization Rate: {kg.get('standardization_rate', 0)}")
+        print("Matched ICD-10 Codes:", kg.get("icd10_codes", []))
+        
+        print("\n=== 🚨 4. HALLUCINATION DETECTION ===")
+        hal = result.get("verification", {}).get("hallucination_results", {})
+        print(f"Overall Risk: {hal.get('overall_risk', 'UNKNOWN')}")
+        print(f"Safe to Use: {hal.get('safe_to_use', False)}")
 
     except Exception as e:
         print(f"Critical Pipeline Failure: {e}")

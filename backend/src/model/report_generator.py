@@ -7,7 +7,8 @@ Orchestrates the full Multimodal Medical Report Generation pipeline:
   Step 2 — Uncertainty Sampling (Monte-Carlo severity + semantic variance)
   Step 3 — Round 1 Generation   (RAG-grounded initial report)
   Step 4 — Round 2 Refinement   (lower-temperature verification pass)
-  Step 5 — Assemble result dict
+  Step 5 — Assemble core result dict
+  Step 6 — Verification         (NLI check, KG grounding, Hallucination detection)
 
 Each step is wrapped in its own try/except so a failure in one step
 never crashes the pipeline — it falls back to a safe default and logs
@@ -25,6 +26,9 @@ from src.rag.embedder import ReportEmbedder
 from src.rag.vector_store import VectorStore
 from src.rag.retriever import RAGRetriever
 from src.uncertainty.sampler import UncertaintySampler
+from src.verification.nli_checker import NLIChecker
+from src.verification.knowledge_graph import KnowledgeGraphGrounder
+from src.verification.hallucination_detector import HallucinationDetector
 
 log = logging.getLogger(__name__)
 logging.basicConfig(
@@ -91,6 +95,13 @@ class ReportGenerator:
             temperature=0.7,
         )
 
+        # ── Verification components ───────────────────────────────────────────
+        self.nli_checker  = NLIChecker(self.vlm_client)
+        self.kg_grounder  = KnowledgeGraphGrounder(
+            radlex_path=os.path.join(_BASE_DIR, "data", "raw", "radlex.owl")
+        )
+        self.hallucination_detector = HallucinationDetector(self.vlm_client)
+
         log.info("ReportGenerator ready.")
 
     # ── Structured output parser ─────────────────────────────────────────────
@@ -140,7 +151,7 @@ class ReportGenerator:
     # ── Main pipeline ─────────────────────────────────────────────────────────
 
     def generate_report(self, image_path: str) -> Dict[str, Any]:
-        """Run the full 5-step report generation pipeline.
+        """Run the full 6-step report generation + verification pipeline.
 
         Parameters
         ----------
@@ -150,8 +161,9 @@ class ReportGenerator:
         Returns
         -------
         dict
-            {final_report, round1_raw, round2_raw,
-             retrieved_cases, uncertainty, rag_context_used}
+            {final_report, round1_raw, round2_raw, retrieved_cases,
+             uncertainty, rag_context_used,
+             verification: {nli_results, kg_results, hallucination_results}}
         """
         log.info("=== Starting report generation for: %s ===", image_path)
 
@@ -238,16 +250,59 @@ class ReportGenerator:
                 final_report = self.parse_structured_output(round1_raw)
 
         # ─────────────────────────────────────────────────────────────────────
-        # STEP 5 — Assemble result
+        # STEP 5 — Assemble core result
         # ─────────────────────────────────────────────────────────────────────
-        log.info("Step 5: Assembling result …")
-        result = {
+        log.info("Step 5: Assembling core result …")
+        result: Dict[str, Any] = {
             "final_report":     final_report,
             "round1_raw":       round1_raw,
             "round2_raw":       round2_raw,
             "retrieved_cases":  retrieved_cases,
             "uncertainty":      uncertainty,
             "rag_context_used": rag_context,
+        }
+
+        # ─────────────────────────────────────────────────────────────────────
+        # STEP 6 — Verification
+        # ─────────────────────────────────────────────────────────────────────
+        log.info("Step 6: Verification (NLI + KG + Hallucination) …")
+        nli_results          = {}
+        kg_results           = {}
+        hallucination_results = {}
+
+        findings   = final_report.get("findings",   "")
+        impression = final_report.get("impression", "")
+        severity   = final_report.get("severity",   "UNKNOWN")
+
+        try:
+            nli_results = self.nli_checker.check(findings, impression, severity)
+            log.info("NLI: %s (score=%.2f)",
+                     nli_results.get("nli_result", "?"),
+                     nli_results.get("consistency_score", -1))
+        except Exception as exc:
+            log.error("Step 6a (NLI) failed: %s", exc, exc_info=True)
+
+        try:
+            kg_results = self.kg_grounder.ground_report(findings, impression)
+            log.info("KG: standardization_rate=%.2f",
+                     kg_results.get("standardization_rate", -1))
+        except Exception as exc:
+            log.error("Step 6b (KG) failed: %s", exc, exc_info=True)
+
+        try:
+            hallucination_results = self.hallucination_detector.detect(
+                image_path, final_report
+            )
+            log.info("Hallucination: score=%.2f, safe=%s",
+                     hallucination_results.get("hallucination_score", -1),
+                     hallucination_results.get("safe_to_use", "?"))
+        except Exception as exc:
+            log.error("Step 6c (Hallucination) failed: %s", exc, exc_info=True)
+
+        result["verification"] = {
+            "nli_results":           nli_results,
+            "kg_results":            kg_results,
+            "hallucination_results": hallucination_results,
         }
 
         log.info("=== Report generation complete. ===")
