@@ -3,12 +3,7 @@ import type {
   KnowledgeGraphResult,
   NliCheckResult,
 } from "@/types/report";
-
-const sectionTitle =
-  "border-b border-zinc-200 pb-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:border-zinc-700 dark:text-zinc-400";
-
-const rowLabel = "text-zinc-500 dark:text-zinc-400";
-const rowValue = "font-mono text-xs text-zinc-900 dark:text-zinc-100";
+import { motion } from "framer-motion";
 
 export interface VerificationPanelProps {
   nli_check: NliCheckResult;
@@ -17,6 +12,12 @@ export interface VerificationPanelProps {
   className?: string;
 }
 
+const nliColors: Record<string, string> = {
+  ENTAILS:     "text-emerald-400 border-emerald-400/20 bg-emerald-400/[0.06]",
+  CONTRADICTS: "text-red-400 border-red-400/20 bg-red-400/[0.06]",
+  NEUTRAL:     "text-amber-400 border-amber-400/20 bg-amber-400/[0.06]",
+};
+
 export function VerificationPanel({
   nli_check,
   knowledge_graph,
@@ -24,127 +25,118 @@ export function VerificationPanel({
   className = "",
 }: VerificationPanelProps) {
   const icd10Codes = knowledge_graph.icd10_codes ?? [];
-  const icd10Preview = icd10Codes.slice(0, 8);
+
+  const cards = [
+    {
+      label: "NLI Consistency",
+      content: (
+        <>
+          <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-mono tracking-widest uppercase mb-5 ${nliColors[nli_check.nli_result] ?? nliColors.NEUTRAL}`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-current" />
+            {String(nli_check.nli_result ?? "—")}
+          </span>
+          <div className="space-y-2.5">
+            <div className="flex justify-between text-[10px] font-mono text-white/40 border-b border-white/[0.04] pb-2">
+              <span>SEVERITY</span>
+              <span className="text-white/70">{String(nli_check.severity_check ?? "—")}</span>
+            </div>
+            <div className="flex justify-between text-[10px] font-mono text-white/40 border-b border-white/[0.04] pb-2">
+              <span>SCORE</span>
+              <span className="text-white/70">{nli_check.consistency_score?.toFixed(3) ?? "—"}</span>
+            </div>
+          </div>
+          {nli_check.contradictions && (
+            <div className="mt-4">
+              <span className="text-[9px] text-white/30 uppercase tracking-widest block mb-1">Contradictions</span>
+              <p className="text-xs text-white/50 font-light leading-relaxed">{nli_check.contradictions}</p>
+            </div>
+          )}
+        </>
+      ),
+    },
+    {
+      label: "Ontology Grounding",
+      content: (
+        <>
+          <div className="space-y-2.5 mb-5">
+            <div className="flex justify-between text-[10px] font-mono text-white/40 border-b border-white/[0.04] pb-2">
+              <span>STD RATE</span>
+              <span className="text-white/70">{knowledge_graph.standardization_rate?.toFixed(3) ?? "—"}</span>
+            </div>
+            <div className="flex justify-between text-[10px] font-mono text-white/40 border-b border-white/[0.04] pb-2">
+              <span>TERMS</span>
+              <span className="text-white/70">{knowledge_graph.terms_found?.length ?? 0}</span>
+            </div>
+          </div>
+          {icd10Codes.length > 0 && (
+            <div>
+              <span className="text-[9px] text-white/30 uppercase tracking-widest block mb-2">ICD-10 Mapping</span>
+              <div className="flex flex-wrap gap-1.5">
+                {icd10Codes.slice(0, 5).map((row) => (
+                  <span key={row.icd10_code} className="text-[10px] font-mono text-[#FF6D00]/80 border border-[#FF3D00]/15 bg-[#FF3D00]/[0.04] px-2 py-0.5 rounded-md">
+                    {row.icd10_code}
+                  </span>
+                ))}
+                {icd10Codes.length > 5 && <span className="text-[10px] text-white/30">+{icd10Codes.length - 5}</span>}
+              </div>
+            </div>
+          )}
+        </>
+      ),
+    },
+    {
+      label: "Hallucination Risk",
+      content: (
+        <>
+          <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-mono tracking-widest uppercase mb-5 ${hallucination.safe_to_use ? "text-emerald-400 border-emerald-400/20 bg-emerald-400/[0.06]" : "text-red-400 border-red-400/20 bg-red-400/[0.06]"}`}>
+            <span className="w-1.5 h-1.5 rounded-full bg-current" />
+            {hallucination.safe_to_use ? "SAFE" : "REVIEW"}
+          </span>
+          <div className="space-y-2.5">
+            <div className="flex justify-between text-[10px] font-mono text-white/40 border-b border-white/[0.04] pb-2">
+              <span>RISK</span>
+              <span className="text-white/70">{String(hallucination.overall_risk ?? "—")}</span>
+            </div>
+            <div className="flex justify-between text-[10px] font-mono text-white/40 border-b border-white/[0.04] pb-2">
+              <span>SCORE</span>
+              <span className="text-white/70">{hallucination.hallucination_score?.toFixed(3) ?? "—"}</span>
+            </div>
+            <div className="flex justify-between text-[10px] font-mono text-white/40 border-b border-white/[0.04] pb-2">
+              <span>CLAIMS</span>
+              <span className="text-white/70">{hallucination.claim_verifications?.length ?? 0}</span>
+            </div>
+          </div>
+        </>
+      ),
+    },
+  ];
 
   return (
-    <div
-      className={`rounded-lg border border-zinc-300 bg-zinc-50 p-3 text-xs dark:border-zinc-700 dark:bg-zinc-950 ${className}`.trim()}
-    >
-      <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-zinc-400">
-        Verification (debug)
-      </p>
-      <div className="grid gap-4 md:grid-cols-3">
-        <section>
-          <h3 className={sectionTitle}>NLI consistency</h3>
-          <dl className="mt-2 space-y-1.5">
-            <div className="flex justify-between gap-2">
-              <dt className={rowLabel}>nli_result</dt>
-              <dd className={rowValue}>{String(nli_check.nli_result ?? "—")}</dd>
-            </div>
-            <div className="flex justify-between gap-2">
-              <dt className={rowLabel}>severity_check</dt>
-              <dd className={rowValue}>
-                {String(nli_check.severity_check ?? "—")}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-2">
-              <dt className={rowLabel}>consistency_score</dt>
-              <dd className={rowValue}>
-                {nli_check.consistency_score != null
-                  ? nli_check.consistency_score.toFixed(3)
-                  : "—"}
-              </dd>
-            </div>
-          </dl>
-          <p className={`mt-2 ${rowLabel}`}>contradictions</p>
-          <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap wrap-break-word rounded bg-white/80 p-2 font-mono text-[11px] leading-snug text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
-            {nli_check.contradictions ?? "—"}
-          </pre>
-        </section>
+    <div className={`${className}`.trim()}>
+      <div className="flex items-center gap-3 mb-6">
+        <span className="accent-dot" />
+        <h2
+          style={{ fontFamily: "var(--font-display)" }}
+          className="text-xl md:text-2xl font-bold text-white uppercase tracking-wide"
+        >
+          Verification
+        </h2>
+      </div>
 
-        <section>
-          <h3 className={sectionTitle}>RadLex + ICD-10</h3>
-          <dl className="mt-2 space-y-1.5">
-            <div className="flex justify-between gap-2">
-              <dt className={rowLabel}>standardization_rate</dt>
-              <dd className={rowValue}>
-                {knowledge_graph.standardization_rate != null
-                  ? knowledge_graph.standardization_rate.toFixed(3)
-                  : "—"}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-2">
-              <dt className={rowLabel}>terms_found</dt>
-              <dd className={rowValue}>
-                {(knowledge_graph.terms_found?.length ?? 0)} terms
-              </dd>
-            </div>
-            <div className="flex justify-between gap-2">
-              <dt className={rowLabel}>unmatched</dt>
-              <dd className={rowValue}>
-                {(knowledge_graph.unmatched_terms?.length ?? 0)}
-              </dd>
-            </div>
-          </dl>
-          <p className={`mt-2 ${rowLabel}`}>icd10_codes</p>
-          <ul className="mt-1 max-h-28 space-y-1 overflow-auto font-mono text-[11px] text-zinc-800 dark:text-zinc-200">
-            {icd10Preview.map((row) => (
-              <li key={`${row.icd10_code}-${row.finding}`}>
-                <span className="text-zinc-500">{row.icd10_code}</span>{" "}
-                {row.finding}
-              </li>
-            ))}
-            {icd10Codes.length > 8 ? (
-              <li className="text-zinc-400">
-                +{icd10Codes.length - 8} more
-              </li>
-            ) : null}
-          </ul>
-        </section>
-
-        <section>
-          <h3 className={sectionTitle}>Hallucination</h3>
-          <dl className="mt-2 space-y-1.5">
-            <div className="flex justify-between gap-2">
-              <dt className={rowLabel}>hallucination_score</dt>
-              <dd className={rowValue}>
-                {hallucination.hallucination_score != null
-                  ? hallucination.hallucination_score.toFixed(3)
-                  : "—"}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-2">
-              <dt className={rowLabel}>uncertainty_score</dt>
-              <dd className={rowValue}>
-                {hallucination.uncertainty_score != null
-                  ? hallucination.uncertainty_score.toFixed(3)
-                  : "—"}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-2">
-              <dt className={rowLabel}>overall_risk</dt>
-              <dd className={rowValue}>
-                {String(hallucination.overall_risk ?? "—")}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-2">
-              <dt className={rowLabel}>safe_to_use</dt>
-              <dd className={rowValue}>
-                {hallucination.safe_to_use === true
-                  ? "true"
-                  : hallucination.safe_to_use === false
-                    ? "false"
-                    : "—"}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-2">
-              <dt className={rowLabel}>claims</dt>
-              <dd className={rowValue}>
-                {hallucination.claim_verifications?.length ?? 0}
-              </dd>
-            </div>
-          </dl>
-        </section>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {cards.map((card, i) => (
+          <motion.div
+            key={card.label}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: i * 0.1 }}
+            className="card-dark p-6"
+          >
+            <span className="accent-pill text-[8px] mb-5 inline-flex">{card.label}</span>
+            {card.content}
+          </motion.div>
+        ))}
       </div>
     </div>
   );

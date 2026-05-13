@@ -72,8 +72,8 @@ class VectorStore:
         faiss.write_index(self._index, index_path)
         with open(metadata_path, "wb") as fp:
             pickle.dump(self._metadata, fp)
-        print(f"[VectorStore] Saved index → {index_path}")
-        print(f"[VectorStore] Saved metadata → {metadata_path}")
+        print(f"[VectorStore] Saved index to {index_path}")
+        print(f"[VectorStore] Saved metadata to {metadata_path}")
 
     def load(self, index_path: str, metadata_path: str) -> None:
         """Load a previously saved index and metadata from disk.

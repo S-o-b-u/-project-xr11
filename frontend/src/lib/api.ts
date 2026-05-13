@@ -3,7 +3,7 @@ import axios from "axios";
 import type { GenerateReportSuccessResponse } from "@/types/report";
 
 const GENERATE_REPORT_URL =
-  "http://localhost:8000/api/generate-report";
+  "http://127.0.0.1:8000/api/generate-report";
 
 /**
  * Uploads an image file and returns the structured report API payload.

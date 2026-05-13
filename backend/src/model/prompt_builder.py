@@ -55,13 +55,10 @@ Your task is to:
 Preliminary Report:
 {preliminary_report}
 
-You MUST respond STRICTLY in the following format with no extra text or conversational filler:
-
-FINDINGS: [detailed observations regarding the lungs, heart, pleura, bones, and any abnormalities]
-IMPRESSION: [concise clinical conclusion synthesizing the findings]
-SEVERITY: [exactly one of: NORMAL / MILD / MODERATE / CRITICAL]
-FOLLOW_UP: [recommended next steps or 'None' if not applicable]
-DEVIATIONS: [any significant changes from the preliminary report, or 'None']
+You MUST format your final response using EXACTLY these markdown headers, with no deviations:
+**FINDINGS:** [your detailed findings here]
+**IMPRESSION:** [your clinical impression here]
+**SEVERITY:** [choose exactly one: NORMAL, MILD, MODERATE, CRITICAL]
 """
 
 

@@ -1,80 +1,76 @@
-import os
-from dotenv import load_dotenv
+import os, time, random, base64
+from io import BytesIO
 import google.generativeai as genai
+from groq import Groq
 from PIL import Image
-
-# Load environment variables
-load_dotenv()
-
-# Configure Gemini API
-gemini_api_key = os.getenv("GEMINI_API_KEY")
-if gemini_api_key:
-    genai.configure(api_key=gemini_api_key)
-else:
-    print("Warning: GEMINI_API_KEY not found in environment variables.")
+from dotenv import load_dotenv
 
 class VLMClient:
     def __init__(self):
-        # We use gemini-2.5-flash as requested
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
+        load_dotenv()
+        
+        # Gemini for vision
+        genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+        self.gemini = genai.GenerativeModel("gemini-2.0-flash")
+        
+        # Groq for text only
+        self.groq = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        self.groq_model = "llama-3.3-70b-versatile"
+        
+        self.n_samples = 2
+        
+        print("VLMClient ready (Decoupled Hybrid Mode)")
+        print("  Vision → Gemini 2.5 Flash (direct API)")
+        print("  Text   → Groq Llama 3.1 70B (direct API)")
 
     def generate(self, prompt: str, image_path: str, temperature: float = 0.3) -> str:
-        """
-        Opens an image, converts it to RGB, and sends it along with the prompt
-        to the Gemini 1.5 Flash model.
+        # VISION call — uses Gemini directly
+        max_retries = 8
+        for attempt in range(max_retries):
+            try:
+                image = Image.open(image_path).convert("RGB")
+                response = self.gemini.generate_content(
+                    [prompt, image],
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=temperature,
+                        max_output_tokens=1024
+                    )
+                )
+                print(f"✅ Vision call OK (Gemini) on attempt {attempt+1}")
+                return response.text
+            except Exception as e:
+                if "429" in str(e) or "quota" in str(e).lower() or "exhausted" in str(e).lower():
+                    # Standard backoff: 2s, 4s, 8s...
+                    wait = 2 * (2 ** attempt) + random.uniform(0, 2)
+                    print(f"⚠️ Gemini rate limit hit. Sleeping {wait:.0f}s before attempt {attempt+2}/{max_retries}...")
+                    time.sleep(wait)
+                else:
+                    print(f"❌ Gemini error attempt {attempt+1}: {e}")
+                    time.sleep(5)
+        
+        raise Exception("Gemini API completely blocked after 8 retries. Pipeline halted.")
 
-        Parameters
-        ----------
-        prompt : str
-            Text prompt to send alongside the image.
-        image_path : str
-            Path to the chest X-ray image.
-        temperature : float
-            Sampling temperature (default 0.3 for deterministic generation;
-            use higher values e.g. 0.7 for uncertainty sampling).
-        """
-        # Open and convert image
-        try:
-            image = Image.open(image_path).convert("RGB")
-        except Exception as e:
-            raise RuntimeError(f"Failed to open image at {image_path}: {e}")
-
-        # Generation config — temperature is now dynamic
-        generation_config = genai.types.GenerationConfig(
-            temperature=temperature,
-            max_output_tokens=1024,
-        )
-
-        # Send request
-        response = self.model.generate_content(
-            [prompt, image],
-            generation_config=generation_config
-        )
-
-        return response.text
-
-    def generate_text_only(self, prompt: str, temperature: float = 0.3) -> str:
-        """Send a text-only prompt to Gemini (no image).
-
-        Used by verification modules (NLI checker, etc.) that operate on
-        already-generated text rather than raw images.
-
-        Parameters
-        ----------
-        prompt : str
-            Text prompt to send.
-        temperature : float
-            Sampling temperature (default 0.3).
-        """
-        generation_config = genai.types.GenerationConfig(
-            temperature=temperature,
-            max_output_tokens=1024,
-        )
-        response = self.model.generate_content(
-            prompt,
-            generation_config=generation_config,
-        )
-        return response.text
-
-    # Alias used by NLIChecker
-    generate_no_image = generate_text_only
+    def generate_no_image(self, prompt: str, temperature: float = 0.3) -> str:
+        # TEXT ONLY call — uses Groq directly
+        max_retries = 6
+        for attempt in range(max_retries):
+            try:
+                response = self.groq.chat.completions.create(
+                    model=self.groq_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=1024,
+                    temperature=temperature
+                )
+                print(f"✅ Text call OK (Groq) on attempt {attempt+1}")
+                return response.choices[0].message.content
+            except Exception as e:
+                if "429" in str(e) or "rate_limit" in str(e).lower():
+                    # Standard backoff: 1s, 2s, 4s...
+                    wait = 1 * (2 ** attempt) + random.uniform(0, 1)
+                    print(f"⚠️ Groq rate limit hit. Sleeping {wait:.0f}s before attempt {attempt+2}/{max_retries}...")
+                    time.sleep(wait)
+                else:
+                    print(f"❌ Groq error attempt {attempt+1}: {e}")
+                    time.sleep(5)
+                    
+        raise Exception("Groq API completely blocked after 6 retries. Pipeline halted.")

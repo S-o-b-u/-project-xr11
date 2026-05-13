@@ -1,26 +1,172 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════════
+   XR 11 — Kinetic Studio Design System
+   Black editorial + hot red/orange gradient accents
+   ═══════════════════════════════════════════════════════════════ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* ── Palette ──────────────────────────────────────────────── */
+  --bg:          #000000;
+  --bg-card:     #0A0A0A;
+  --bg-card-alt: #111111;
+  --fg:          #F5F5F5;
+  --fg-muted:    #888888;
+  --fg-dim:      #555555;
+  --border:      rgba(255,255,255,0.06);
+  --border-hover:rgba(255,255,255,0.12);
+
+  /* Hot accent system */
+  --accent:      #FF3D00;
+  --accent-end:  #FF6D00;
+  --accent-glow: rgba(255,61,0,0.35);
+  --accent-soft: rgba(255,61,0,0.08);
+
+  /* Semantic */
+  --success:     #22C55E;
+  --warning:     #F59E0B;
+  --danger:      #EF4444;
+
+  /* Fonts */
+  --font-display: "Syncopate", sans-serif;
+  --font-body:    "Outfit", sans-serif;
+
+  --spacing-unit: 8px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --font-sans: var(--font-body);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Base ───────────────────────────────────────────────────── */
+body {
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+::selection {
+  background: var(--accent);
+  color: #000;
+}
+
+/* ── Section label — small uppercase mono ──────────────────── */
+.section-label {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+/* ── Accent pill label (like "Strategy" in reference) ──────── */
+.accent-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(255,61,0,0.15);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* ── Accent dot (small glowing red circle) ─────────────────── */
+.accent-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-end));
+  box-shadow: 0 0 10px var(--accent-glow), 0 0 20px rgba(255,61,0,0.15);
+  flex-shrink: 0;
+}
+
+.accent-dot-lg {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-end));
+  box-shadow: 0 0 16px var(--accent-glow), 0 0 30px rgba(255,61,0,0.15);
+  flex-shrink: 0;
+}
+
+/* ── Dark card (Kinetic style solid dark bg) ───────────────── */
+.card-dark {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card-dark:hover {
+  border-color: var(--border-hover);
+  box-shadow: 0 0 40px rgba(255,61,0,0.04);
+}
+
+/* ── Gradient accent bar ───────────────────────────────────── */
+.accent-bar {
+  background: linear-gradient(90deg, var(--accent), var(--accent-end));
+  border-radius: 4px;
+}
+
+/* ── Soft divider ──────────────────────────────────────────── */
+.divider {
+  height: 1px;
+  background: var(--border);
+  border: none;
+}
+
+/* ── Hover lift ────────────────────────────────────────────── */
+.hover-lift {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.hover-lift:hover {
+  opacity: 0.85;
+  transform: translateY(-1px);
+}
+
+/* ── Noise texture overlay ─────────────────────────────────── */
+.noise-bg::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+
+/* ── Animations ────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px var(--accent-glow); }
+  50%      { box-shadow: 0 0 20px var(--accent-glow), 0 0 40px rgba(255,61,0,0.1); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
 }

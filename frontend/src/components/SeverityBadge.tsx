@@ -1,17 +1,10 @@
 import type { ReportSeverity } from "@/types/report";
 
-const severityStyles: Record<
-  ReportSeverity,
-  string
-> = {
-  NORMAL:
-    "bg-emerald-100 text-emerald-900 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/50 dark:text-emerald-200 dark:ring-emerald-500/30",
-  MILD:
-    "bg-amber-100 text-amber-950 ring-1 ring-inset ring-amber-500/25 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-400/30",
-  MODERATE:
-    "bg-orange-100 text-orange-950 ring-1 ring-inset ring-orange-500/25 dark:bg-orange-950/45 dark:text-orange-200 dark:ring-orange-400/30",
-  CRITICAL:
-    "bg-red-100 text-red-950 ring-1 ring-inset ring-red-600/30 dark:bg-red-950/50 dark:text-red-200 dark:ring-red-500/35",
+const severityStyles: Record<ReportSeverity, { text: string; bg: string; border: string; dot: string }> = {
+  NORMAL:   { text: "text-emerald-400", bg: "bg-emerald-400/8",  border: "border-emerald-400/20", dot: "bg-emerald-400" },
+  MILD:     { text: "text-amber-400",   bg: "bg-amber-400/8",    border: "border-amber-400/20",   dot: "bg-amber-400" },
+  MODERATE: { text: "text-orange-500",  bg: "bg-orange-500/8",   border: "border-orange-500/20",  dot: "bg-gradient-to-r from-[#FF3D00] to-[#FF6D00]" },
+  CRITICAL: { text: "text-red-500",     bg: "bg-red-500/8",      border: "border-red-500/20",     dot: "bg-gradient-to-r from-[#FF3D00] to-[#EF4444]" },
 };
 
 export interface SeverityBadgeProps {
@@ -20,12 +13,13 @@ export interface SeverityBadgeProps {
 }
 
 export function SeverityBadge({ severity, className = "" }: SeverityBadgeProps) {
-  const styles = severityStyles[severity];
+  const s = severityStyles[severity] ?? severityStyles.NORMAL;
 
   return (
     <span
-      className={`inline-flex max-w-full items-center rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${styles} ${className}`.trim()}
+      className={`inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border text-[10px] font-mono tracking-widest uppercase ${s.text} ${s.border} ${s.bg} ${className}`.trim()}
     >
+      <span className={`w-2 h-2 rounded-full ${s.dot}`} style={{ boxShadow: severity === "CRITICAL" || severity === "MODERATE" ? "0 0 8px rgba(255,61,0,0.4)" : "none" }} />
       {severity}
     </span>
   );

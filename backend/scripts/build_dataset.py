@@ -34,7 +34,7 @@ def main() -> None:
 
     # Preview first 3 entries
     if dataset:
-        print("\n─── Preview (first 3 entries) ─────────────────────────────────────────")
+        print("\n--- Preview (first 3 entries) -----------------------------------------")
         preview = dataset[:3]
         print(json.dumps(preview, indent=2, ensure_ascii=False))
     else:

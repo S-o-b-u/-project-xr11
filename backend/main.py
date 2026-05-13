@@ -9,10 +9,12 @@ server startup as module-level singletons so per-request latency is minimal.
 Endpoints
 ---------
 GET  /                    → status + version
-GET  /health              → alive check
+GET  /health              → pipeline health and models loaded
 GET  /api/stats           → dataset + index sizes
-POST /api/generate-report → full 6-step AI pipeline
+POST /api/generate-report → full XR11 v2 multi-agent pipeline
 POST /api/evaluate        → BLEU + ROUGE scorer
+GET  /pipeline-info       → pipeline architecture info
+GET  /graph-summary       → clinical knowledge graph summary
 """
 
 import json
@@ -21,6 +23,7 @@ import os
 import shutil
 import time
 import uuid
+import threading
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
@@ -148,12 +151,12 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
 app = FastAPI(
     title="XR11 — Medical Report Generation API",
     description="Multimodal AI pipeline for automated radiology report generation.",
-    version="1.0.0",
+    version="2.0.0",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -172,14 +175,18 @@ async def startup_event():
     """Initialise all heavy components once so requests are fast."""
     global generator, evaluator
 
-    log.info("=== XR11 API starting up ===")
+    log.info("=== XR11 API v2 starting up ===")
 
     # Import here to keep module-level import errors out of the startup path
-    from src.model.report_generator import ReportGenerator
+    from src.model.report_generator import XR11ReportGenerator
     from src.evaluation.evaluator import Evaluator
 
-    log.info("Loading ReportGenerator (embedding model + FAISS index) …")
-    generator = ReportGenerator()   # loads embedder, FAISS, NLI, KG, HallucinationDetector
+    log.info("Instantiating XR11ReportGenerator...")
+    generator = XR11ReportGenerator()
+    
+    # Trigger lazy initialization in a background thread so the server bounds port instantly
+    log.info("Triggering background lazy init of multi-agent components...")
+    threading.Thread(target=generator._lazy_init, daemon=True).start()
 
     log.info("Loading Evaluator …")
     evaluator = Evaluator()
@@ -199,12 +206,58 @@ def _require_ready():
 
 @app.get("/", summary="Root")
 def root():
-    return {"status": "running", "version": "1.0.0"}
+    return {"status": "running", "version": "2.0.0"}
 
 
-@app.get("/health", summary="Health check")
+@app.get("/health", summary="Health check and model status")
 def health():
-    return {"status": "ok"}
+    if generator is None:
+        return {"status": "starting"}
+        
+    return {
+        "status": "healthy",
+        "pipeline_version": "XR11_v2",
+        "models_loaded": {
+            "pathology_detector": getattr(generator, "_pathology_detector", None) is not None,
+            "embedding_engine": getattr(generator, "_embedding_engine", None) is not None,
+            "graph_builder": getattr(generator, "_graph_builder", None) is not None,
+            "synthesis_agent": getattr(generator, "_synthesis_agent", None) is not None
+        },
+        "api_calls_today": getattr(generator, "api_calls_count", 0),
+        "architecture": "distributed_multi_agent"
+    }
+
+
+@app.get("/pipeline-info", summary="Pipeline architecture info")
+def pipeline_info():
+    return {
+        "name": "XR11 v2 - Distributed Multi-Agent Radiology AI",
+        "components": [
+            "EnhancedImageProcessor",
+            "PathologyDetector (TorchXRayVision)",
+            "EmbeddingEngine (MedCLIP)",
+            "ConceptExtractor",
+            "ClinicalKnowledgeGraph (NetworkX)",
+            "HybridClinicalRetriever (FAISS + Graph + Pathology)",
+            "AnatomyAgent",
+            "DiseaseAgent",
+            "RetrievalAgent",
+            "ConsistencyAgent",
+            "SynthesisAgent (Groq)",
+            "MCDropoutEstimator",
+            "CrossModalChecker"
+        ],
+        "api_calls_per_analysis": "1 (Groq synthesis only)",
+        "local_models": ["TorchXRayVision", "MedCLIP", "BioBERT", "MiniLM-NLI"]
+    }
+
+
+@app.get("/graph-summary", summary="Clinical Knowledge Graph Summary")
+def graph_summary():
+    _require_ready()
+    if not getattr(generator, "_graph_builder", None):
+        raise HTTPException(status_code=503, detail="Knowledge Graph is still loading or unavailable.")
+    return generator._graph_builder.export_graph_summary()
 
 
 @app.get(
@@ -226,7 +279,8 @@ def get_stats():
 
     index_size = 0
     try:
-        index_size = generator.vector_store._index.ntotal
+        if getattr(generator, "_hybrid_retriever", None) and generator._hybrid_retriever.faiss_index:
+            index_size = generator._hybrid_retriever.faiss_index.ntotal
     except Exception:
         pass
 
@@ -236,21 +290,11 @@ def get_stats():
 @app.post(
     "/api/generate-report",
     response_model=GenerateReportResponse,
-    summary="Generate a structured radiology report from a chest X-ray image",
+    summary="Generate a structured radiology report from a chest X-ray image using XR11 v2 pipeline",
 )
 async def generate_report(file: UploadFile = File(...)):
     """
-    Accepts a PNG or JPG chest X-ray image and runs the full 6-step pipeline:
-
-    1. RAG retrieval (3 similar historical cases)
-    2. Monte-Carlo uncertainty quantification (5 samples)
-    3. Round 1 generation (RAG-grounded, T=0.3)
-    4. Round 2 refinement (T=0.2)
-    5. Verification: NLI check + KG grounding + Hallucination detection
-    6. Return assembled result
-
-    Returns structured findings, impression, severity, follow-up,
-    uncertainty metrics, and verification scores.
+    Accepts a PNG or JPG chest X-ray image and runs the full XR11 v2 multi-agent pipeline.
     """
     _require_ready()
 
@@ -269,23 +313,17 @@ async def generate_report(file: UploadFile = File(...)):
         with open(temp_path, "wb") as buf:
             shutil.copyfileobj(file.file, buf)
 
-        # ── Run full pipeline (Steps 1-6 are all inside generate_report) ─────
+        # ── Run full multi-agent pipeline ─────────────────────────────────────
         result = generator.generate_report(temp_path)
 
-        verification = result.get("verification", {})
+        print("\n" + "="*80)
+        print("FINAL JSON PAYLOAD DELIVERED TO FRONTEND:")
+        print(json.dumps(result, indent=2))
+        print("="*80 + "\n")
 
         return GenerateReportResponse(
             status="success",
-            data={
-                "final_report":    result.get("final_report",    {}),
-                "round1_raw":      result.get("round1_raw",      ""),
-                "round2_raw":      result.get("round2_raw",      ""),
-                "retrieved_cases": result.get("retrieved_cases", []),
-                "uncertainty":     result.get("uncertainty",     {}),
-                "nli_check":       verification.get("nli_results",           {}),
-                "knowledge_graph": verification.get("kg_results",            {}),
-                "hallucination":   verification.get("hallucination_results", {}),
-            },
+            data=result,
         )
 
     except HTTPException:
@@ -307,14 +345,6 @@ def evaluate_report(payload: EvaluateRequest):
     """
     Accepts a generated report dict and a gold (reference) dict and returns
     BLEU + ROUGE-1/2/L scores for the findings and impression fields.
-
-    Body example:
-    ```json
-    {
-      "generated": {"findings": "...", "impression": "..."},
-      "gold":      {"gold_findings": "...", "gold_impression": "..."}
-    }
-    ```
     """
     _require_ready()
 

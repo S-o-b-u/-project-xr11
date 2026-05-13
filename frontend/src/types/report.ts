@@ -97,6 +97,30 @@ export interface GenerateReportData {
   nli_check: NliCheckResult;
   knowledge_graph: KnowledgeGraphResult;
   hallucination: HallucinationResult;
+  pathology?: {
+    findings: Record<string, { present: boolean; confidence: number }>;
+    positive_findings: string[];
+    overall_abnormality_score: number;
+  };
+  concepts?: Array<{
+    finding_id: string;
+    raw_label: string;
+    clinical_term: string;
+    confidence: number;
+    severity: string;
+    icd10_hint: string;
+  }>;
+  agents?: {
+    anatomy?: Record<string, unknown>;
+    disease?: Record<string, unknown>;
+    consistency?: Record<string, unknown>;
+    synthesis?: Record<string, unknown>;
+  };
+  metadata?: {
+    api_calls_used: number;
+    generation_method: string;
+    pipeline_version: string;
+  };
 }
 
 /** Top-level successful response from POST /api/generate-report. */
